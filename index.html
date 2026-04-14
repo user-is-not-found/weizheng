@@ -27,7 +27,7 @@
             <div class="px-6 py-4">
                 <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">批次匯入並存檔</label>
                 <input type="file" id="excel-upload" accept=".xlsx, .xls, .csv" multiple class="hidden" onchange="handleImport(event)">
-                <button onclick="document.getElementById('excel-upload').click()" id="upload-btn" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition font-bold shadow-lg disabled:opacity-50" disabled><i class="fa-solid fa-cloud-arrow-up mr-2"></i>等待連線...</button>
+                <button onclick="document.getElementById('excel-upload').click()" id="upload-btn" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition font-bold shadow-lg disabled:opacity-50" disabled><i class="fa-solid fa-spinner fa-spin mr-2"></i>連線中...</button>
             </div>
             <div class="mt-6 px-3">
                 <li class="text-xs font-semibold text-gray-400 uppercase mb-2 px-3 flex justify-between"><span>廠商清單</span><span id="vendor-count" class="text-green-400">0</span></li>
@@ -41,7 +41,7 @@
             <div class="text-center"><i class="fa-solid fa-circle-notch fa-spin text-4xl text-green-600 mb-4"></i><div class="text-sm font-bold text-gray-700">雲端資料同步中...</div></div>
         </div>
         <header class="h-16 bg-white border-b flex items-center justify-between px-6 shadow-sm z-10">
-            <div><h1 class="text-lg font-bold text-gray-800">雲端估算資料庫</h1><p id="data-status" class="text-[10px] text-gray-500 italic">連線中...</p></div>
+            <div><h1 class="text-lg font-bold text-gray-800">雲端估算資料庫</h1><p id="data-status" class="text-[10px] text-gray-500 italic">正在檢查連線...</p></div>
             <button onclick="clearCloudData()" id="delete-btn" class="px-3 py-1.5 border border-red-200 text-xs text-red-600 hover:bg-red-50 rounded transition disabled:opacity-30" disabled><i class="fa-solid fa-trash-can mr-1"></i>清除雲端</button>
         </header>
         <div class="flex-1 overflow-y-auto p-6 space-y-6">
@@ -59,7 +59,7 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-gray-50 border-b text-gray-600"><tr><th class="p-4 font-bold">分類</th><th class="p-4 font-bold">編號</th><th class="p-4 font-bold">工料名稱</th><th class="p-4 font-bold">單位</th><th class="p-4 font-bold">廠商</th><th class="p-4 font-bold text-right">數量</th></tr></thead>
-                        <tbody id="table-body" class="divide-y divide-gray-100"><tr><td colspan="6" class="p-20 text-center text-gray-400">環境初始化中...</td></tr></tbody>
+                        <tbody id="table-body" class="divide-y divide-gray-100"><tr><td colspan="6" class="p-20 text-center text-gray-400 italic">等待連線中... 如果長時間沒反應請重新整理</td></tr></tbody>
                     </table>
                 </div>
             </div>
@@ -76,23 +76,38 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'weizheng-estimator-v3';
         let cloudData = [], currentFilter = 'ALL', currentUser = null, unsubscribeStore = null;
         const categoryMap = { 'C': '結構工程', 'D': '隔間工程', 'E': '地坪工程', 'F': '平頂工程', 'G': '內牆工程', 'H': '踢腳工程', 'I': '防水工程', 'K': '外牆工程', 'M': '門窗工程' };
+        
         async function initApp() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { await signInWithCustomToken(auth, __initial_auth_token); } 
-                else { await signInAnonymously(auth); }
-            } catch (err) { document.getElementById('auth-status').innerText = "授權失敗"; }
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) { 
+                    await signInWithCustomToken(auth, __initial_auth_token); 
+                } else { 
+                    await signInAnonymously(auth); 
+                }
+            } catch (err) { 
+                console.error("Auth Error:", err);
+                document.getElementById('auth-status').innerText = "連線失敗"; 
+                document.getElementById('auth-status').className = "text-red-500";
+            }
         }
+
         onAuthStateChanged(auth, (user) => {
-            currentUser = user;
             if (user) {
+                currentUser = user;
                 document.getElementById('auth-status').innerText = "已連線";
                 document.getElementById('auth-status').className = "text-green-400";
-                document.getElementById('upload-btn').disabled = false;
-                document.getElementById('upload-btn').innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-2"></i>匯入資料`;
+                const uploadBtn = document.getElementById('upload-btn');
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up mr-2"></i>匯入資料`;
                 document.getElementById('delete-btn').disabled = false;
                 startSync();
-            } else { if (unsubscribeStore) unsubscribeStore(); }
+            } else {
+                currentUser = null;
+                if (unsubscribeStore) unsubscribeStore();
+                document.getElementById('auth-status').innerText = "未登入";
+            }
         });
+
         function startSync() {
             if (!currentUser) return;
             const dataCol = collection(db, 'artifacts', appId, 'public', 'data', 'materials');
@@ -100,9 +115,13 @@
             unsubscribeStore = onSnapshot(dataCol, (snap) => {
                 cloudData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                 updateUI();
-                document.getElementById('data-status').innerText = `同步完成 (項次: ${cloudData.length})`;
-            }, (err) => { document.getElementById('table-body').innerHTML = `<tr><td colspan="6" class="p-10 text-center text-red-500">權限錯誤。</td></tr>`; });
+                document.getElementById('data-status').innerText = `同步完成 (共 ${cloudData.length} 筆)`;
+            }, (err) => { 
+                console.error("Firestore Error:", err);
+                document.getElementById('table-body').innerHTML = `<tr><td colspan="6" class="p-10 text-center text-red-500 font-bold">無法讀取資料：請檢查權限或路徑。</td></tr>`; 
+            });
         }
+
         window.handleImport = async (e) => {
             if (!currentUser) return;
             const files = e.target.files;
@@ -137,8 +156,9 @@
                 }
             } catch (err) { alert("匯入出錯"); } finally { document.getElementById('global-spinner').classList.add('hidden'); e.target.value = ''; }
         };
+
         window.clearCloudData = async () => {
-            if (!currentUser || !confirm("確定清空？")) return;
+            if (!currentUser || !confirm("確定要永久清空資料庫嗎？")) return;
             document.getElementById('global-spinner').classList.remove('hidden');
             try {
                 const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'materials'));
@@ -147,14 +167,17 @@
                 await batch.commit();
             } finally { document.getElementById('global-spinner').classList.add('hidden'); }
         };
+
         function updateUI() { renderTable(); renderStats(); renderSidebar(); renderFilters(); }
+        
         window.renderTable = () => {
             const search = document.getElementById('searchInput').value.toLowerCase();
             const filtered = cloudData.filter(m => (currentFilter === 'ALL' || m.catCode === currentFilter) && (m.name.toLowerCase().includes(search) || m.code.toLowerCase().includes(search) || m.vendor.toLowerCase().includes(search)));
             document.getElementById('table-body').innerHTML = filtered.length ? filtered.map(m => `
                 <tr class="hover:bg-gray-50 border-b border-gray-100 transition"><td class="p-4"><span class="cat-pill cat-${m.catCode}">${m.catName}</span></td><td class="p-4 font-mono text-blue-700">${m.code}</td><td class="p-4 font-medium">${m.name}</td><td class="p-4 text-gray-500">${m.unit}</td><td class="p-4 text-xs text-gray-400">${m.vendor}</td><td class="p-4 text-right font-bold text-green-700 font-mono">${m.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</td></tr>
-            `).join('') : `<tr><td colspan="6" class="p-20 text-center text-gray-400">無相符資料</td></tr>`;
+            `).join('') : `<tr><td colspan="6" class="p-20 text-center text-gray-400">目前無資料</td></tr>`;
         };
+
         function renderStats() {
             const vSet = new Set(cloudData.map(d => d.vendor));
             document.getElementById('stat-total').innerText = cloudData.length;
@@ -163,10 +186,12 @@
             document.getElementById('stat-e').innerText = cloudData.filter(m => m.catCode === 'E').length;
             document.getElementById('vendor-count').innerText = vSet.size;
         }
+
         function renderSidebar() {
             const vSet = new Set(cloudData.map(d => d.vendor));
-            document.getElementById('vendor-items').innerHTML = vSet.size ? Array.from(vSet).map(v => `<li class="px-6 py-2 hover:bg-white/10 transition truncate text-xs"><i class="fa-solid fa-database text-green-400 mr-2"></i>${v}</li>`).join('') : `<li class="px-6 py-2 italic text-xs">暫無資料</li>`;
+            document.getElementById('vendor-items').innerHTML = vSet.size ? Array.from(vSet).map(v => `<li class="px-6 py-2 hover:bg-white/10 transition truncate text-xs"><i class="fa-solid fa-database text-green-400 mr-2"></i>${v}</li>`).join('') : `<li class="px-6 py-2 italic text-xs text-gray-500">暫無廠商資料</li>`;
         }
+
         function renderFilters() {
             const cats = ['ALL', ...Object.keys(categoryMap), 'Other'];
             document.getElementById('filter-btns').innerHTML = cats.map(c => {
@@ -174,8 +199,11 @@
                 return (c === 'ALL' || count > 0) ? `<button onclick="window.setFilter('${c}')" class="px-3 py-1.5 text-xs border rounded-full transition ${currentFilter === c ? 'bg-[#3c4b64] text-white shadow-md' : 'bg-white text-gray-600 hover:bg-gray-100'}">${c === 'ALL' ? '全部' : (categoryMap[c] || '其他')} (${count})</button>` : '';
             }).join('');
         }
+
         window.setFilter = (c) => { currentFilter = c; updateUI(); };
-        initApp();
+
+        // 確保視窗載入後立即執行
+        window.onload = initApp;
     </script>
 </body>
 </html>
