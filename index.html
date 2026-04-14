@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>崴正營造 — 估算總表儀表板</title>
+    <title>崴正營造 — 雲端估算儀表板</title>
     <!-- 引入外部函式庫 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
@@ -22,7 +22,7 @@
             --sidebar-bg: #3c4b64;
             --border: #d8dbe0;
         }
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: var(--surface); color: var(--on-surface); margin: 0; overflow: hidden; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: var(--surface); color: var(--on-surface); margin: 0; height: 100vh; display: flex; overflow: hidden; }
         .font-mono-code { font-family: 'JetBrains Mono', monospace; }
         .font-bebas { font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; }
         .wz-card { background: var(--surface-card); border: 1px solid var(--border); border-radius: 0.375rem; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
@@ -39,222 +39,373 @@
         .filter-btn.active { background: var(--sidebar-bg); color: white; border-color: var(--sidebar-bg); }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 3px; }
-        
         .editable:hover { background-color: #f0fdf4; cursor: pointer; }
-        .editing-input { width: 100%; border: 2px solid var(--primary); border-radius: 4px; padding: 2px 4px; outline: none; }
-        
-        /* 側邊欄刪除按鈕樣式 */
-        .vendor-item:hover .delete-vendor-btn { opacity: 1; }
+        .editing-input { width: 100%; border: 2px solid var(--primary); border-radius: 4px; padding: 2px 4px; outline: none; background: white; }
         .delete-vendor-btn { opacity: 0; transition: opacity 0.2s; }
+        .vendor-item:hover .delete-vendor-btn { opacity: 1; }
+        .main-content-scroll { flex: 1; overflow-y: auto; padding: 1.5rem; height: calc(100vh - 64px); }
+        
+        @keyframes pulse-green {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .sync-active { animation: pulse-green 2s infinite; color: #28a745; }
+        
+        /* 權限錯誤提示樣式 */
+        #permission-error {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            display: none;
+        }
     </style>
 </head>
-<body class="flex h-screen overflow-hidden">
+<body>
+
+    <!-- 權限錯誤警告框 -->
+    <div id="permission-error" class="max-w-md bg-red-100 border-l-4 border-red-500 text-red-700 p-4 shadow-2xl rounded-r">
+        <div class="flex items-start">
+            <i class="fa-solid fa-triangle-exclamation mt-1 mr-3"></i>
+            <div>
+                <p class="font-bold">資料庫連線權限不足</p>
+                <p class="text-xs mt-1">請確保 Firebase Firestore Rules 已開啟。請在 Firebase 控制台將 Rules 修改為：</p>
+                <pre class="bg-red-200 p-2 mt-2 text-[10px] rounded overflow-x-auto">
+match /artifacts/{appId}/public/data/{document=**} {
+  allow read, write: if true;
+}</pre>
+                <button onclick="this.parentElement.parentElement.parentElement.style.display='none'" class="mt-2 text-xs font-bold underline">關閉提示</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Sidebar -->
     <aside class="w-64 flex-shrink-0 flex flex-col transition-all duration-300 shadow-xl z-20" style="background-color: var(--sidebar-bg); color: rgba(255,255,255,0.8);">
-        <div class="h-16 flex items-center justify-center font-bold text-xl text-white tracking-widest border-b border-gray-700 font-bebas">
-            WEI-ZHENG <span class="text-green-400 ml-1">OFFICIAL</span>
+        <div class="h-16 flex-shrink-0 flex items-center justify-center font-bold text-xl text-white tracking-widest border-b border-gray-700 font-bebas">
+            WEI-ZHENG <span class="text-green-400 ml-1">CLOUD</span>
         </div>
         
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
-                <li class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">數據管理中心</li>
+                <li class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">雲端管理中心</li>
                 <li>
                     <a href="#" class="flex items-center px-6 py-3 text-white" style="background-color: rgba(255,255,255,0.05); border-left: 4px solid var(--primary-container);">
-                        <i class="fa-solid fa-chart-pie w-6"></i><span>估算彙整儀表板</span>
+                        <i class="fa-solid fa-cloud w-6"></i><span>雲端即時總表</span>
                     </a>
                 </li>
                 <li class="px-6 py-4">
-                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">標單資料載入</label>
+                    <label class="block text-xs font-semibold text-gray-400 uppercase mb-2">上傳新標單</label>
                     <input type="file" id="excel-upload" accept=".xlsx, .xls, .csv" multiple class="hidden" onchange="handleMultipleFiles(event)">
                     <button onclick="document.getElementById('excel-upload').click()" class="w-full py-2 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition font-bold shadow-lg">
-                        <i class="fa-solid fa-file-circle-plus mr-2"></i>匯入工料標單
+                        <i class="fa-solid fa-file-arrow-up mr-2"></i>匯入並同步雲端
                     </button>
                 </li>
             </ul>
             <div id="vendor-list" class="mt-6 px-3">
                 <li class="text-xs font-semibold text-gray-400 uppercase mb-2 px-3 flex justify-between">
-                    <span>已匯入標單列表</span>
+                    <span>雲端資料來源</span>
                     <span id="vendor-count" class="text-green-400">0</span>
                 </li>
                 <ul id="vendor-items" class="space-y-1 text-sm">
-                    <li class="px-3 py-2 text-gray-500 italic text-xs text-center">尚未匯入任何檔案</li>
+                    <li class="px-3 py-2 text-gray-500 italic text-xs text-center">連線中...</li>
                 </ul>
             </div>
         </nav>
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-screen overflow-hidden">
-        <header class="h-16 bg-white border-b flex items-center justify-between px-6 shadow-sm z-10">
+    <div class="flex-1 flex flex-col min-w-0">
+        <header class="h-16 bg-white border-b flex items-center justify-between px-6 shadow-sm z-10 flex-shrink-0">
             <div>
-                <h1 class="text-lg font-bold text-gray-800 tracking-tight">崴正營造官方資料庫</h1>
-                <p class="text-[10px] text-gray-500 italic">點擊儲存格即可編輯，變更將即時反映於總表中</p>
+                <h1 class="text-lg font-bold text-gray-800 tracking-tight flex items-center gap-2">
+                    崴正營造官方資料庫 <i id="cloud-status-icon" class="fa-solid fa-cloud text-gray-300 text-sm"></i>
+                </h1>
+                <p id="sync-text" class="text-[10px] text-gray-500 italic">正在嘗試連接雲端資料庫...</p>
             </div>
             <div class="flex items-center gap-4">
                 <div id="loading-spinner" class="hidden flex items-center text-green-600 text-xs font-bold">
-                    <i class="fa-solid fa-circle-notch fa-spin mr-2"></i>系統處理中...
+                    <i class="fa-solid fa-circle-notch fa-spin mr-2"></i>同步中...
                 </div>
                 <button onclick="resetData()" class="px-3 py-1.5 border border-red-200 text-xs text-red-600 hover:bg-red-50 rounded transition">
-                    <i class="fa-solid fa-trash-can mr-1"></i>重置資料庫
+                    <i class="fa-solid fa-trash-can mr-1"></i>清空雲端資料
                 </button>
             </div>
         </header>
 
-        <div class="flex-1 overflow-y-auto p-6 space-y-6">
-            <!-- Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div class="wz-card p-4 border-l-4 border-l-blue-500">
-                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">總項次筆數</div>
-                    <div id="stat-total" class="text-3xl font-bebas text-blue-600">0</div>
+        <div class="main-content-scroll">
+            <div class="space-y-6 max-w-[1600px] mx-auto">
+                <!-- Stats -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="wz-card p-4 border-l-4 border-l-blue-500">
+                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">總項次筆數</div>
+                        <div id="stat-total" class="text-3xl font-bebas text-blue-600">0</div>
+                    </div>
+                    <div class="wz-card p-4 border-l-4 border-l-green-500">
+                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">資料來源數</div>
+                        <div id="stat-vendors" class="text-3xl font-bebas text-green-600">0</div>
+                    </div>
+                    <div class="wz-card p-4 border-l-4 border-l-cyan-500">
+                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">結構體筆數</div>
+                        <div id="stat-c" class="text-3xl font-bebas text-cyan-600">0</div>
+                    </div>
+                    <div class="wz-card p-4 border-l-4 border-l-amber-500">
+                        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">地坪工程筆數</div>
+                        <div id="stat-e" class="text-3xl font-bebas text-amber-600">0</div>
+                    </div>
                 </div>
-                <div class="wz-card p-4 border-l-4 border-l-green-500">
-                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">資料來源數</div>
-                    <div id="stat-vendors" class="text-3xl font-bebas text-green-600">0</div>
-                </div>
-                <div class="wz-card p-4 border-l-4 border-l-cyan-500">
-                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">結構體筆數</div>
-                    <div id="stat-c" class="text-3xl font-bebas text-cyan-600">0</div>
-                </div>
-                <div class="wz-card p-4 border-l-4 border-l-amber-500">
-                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">地坪工程筆數</div>
-                    <div id="stat-e" class="text-3xl font-bebas text-amber-600">0</div>
-                </div>
-            </div>
 
-            <!-- Toolbar -->
-            <div class="wz-card p-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-10">
-                <div class="flex flex-wrap gap-1.5" id="filter-btns"></div>
-                <div class="relative w-full md:w-72">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    <input type="text" id="searchInput" placeholder="搜尋工料代號、名稱或廠商..." class="w-full border rounded-full pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 border-gray-300">
+                <!-- Toolbar -->
+                <div class="wz-card p-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-10">
+                    <div class="flex flex-wrap gap-1.5" id="filter-btns"></div>
+                    <div class="relative w-full md:w-72">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" id="searchInput" placeholder="搜尋雲端資料..." class="w-full border rounded-full pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 border-gray-300">
+                    </div>
                 </div>
-            </div>
 
-            <!-- Data Table -->
-            <div class="wz-card overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse text-sm">
-                        <thead>
-                            <tr class="bg-gray-50 border-b text-gray-600">
-                                <th class="p-4 font-bold">工程分類</th>
-                                <th class="p-4 font-bold">工料編號</th>
-                                <th class="p-4 font-bold">工料名稱</th>
-                                <th class="p-4 font-bold">單位</th>
-                                <th class="p-4 font-bold">來源</th>
-                                <th class="p-4 font-bold text-right">合計數量</th>
-                                <th class="p-4 font-bold text-center">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="table-body" class="divide-y divide-gray-100">
-                            <tr>
-                                <td colspan="7" class="p-16 text-center text-gray-400 italic">資料庫目前為空，請匯入標單</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <!-- Table -->
+                <div class="wz-card overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm min-w-[800px]">
+                            <thead>
+                                <tr class="bg-gray-50 border-b text-gray-600">
+                                    <th class="p-4 font-bold">工程分類</th>
+                                    <th class="p-4 font-bold">工料編號</th>
+                                    <th class="p-4 font-bold">工料名稱</th>
+                                    <th class="p-4 font-bold">單位</th>
+                                    <th class="p-4 font-bold">來源</th>
+                                    <th class="p-4 font-bold text-right">合計數量</th>
+                                    <th class="p-4 font-bold text-center">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body" class="divide-y divide-gray-100">
+                                <tr>
+                                    <td colspan="7" class="p-16 text-center text-gray-400 italic">載入雲端數據中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
-    <script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, writeBatch, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase 初始化
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'weizheng-yuntech';
+
+        // 核心狀態
         let allMaterials = [];
         let vendors = new Set();
         let currentFilter = 'ALL';
+        let currentUser = null;
+        let unsubscribe = null;
 
         const categoryMap = {
             'C': '結構工程', 'D': '隔間工程', 'E': '地坪工程', 'F': '平頂工程',
             'G': '內牆工程', 'H': '踢腳工程', 'I': '防水工程', 'K': '外牆工程', 'M': '門窗工程'
         };
 
-        async function handleMultipleFiles(e) {
+        // 登入流程 (遵循 RULE 3)
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("驗證失敗:", err);
+                document.getElementById('sync-text').innerText = "驗證失敗，請檢查網路連線。";
+            }
+        }
+
+        // 監聽認證狀態變更
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                console.log("驗證成功，UID:", user.uid);
+                document.getElementById('sync-text').innerText = "雲端連線已就緒，所有變更將即時儲存";
+                document.getElementById('cloud-status-icon').className = "fa-solid fa-cloud-check text-green-500";
+                startListening();
+            } else {
+                if (unsubscribe) unsubscribe();
+                document.getElementById('cloud-status-icon').className = "fa-solid fa-cloud text-gray-300";
+            }
+        });
+
+        // 監聽資料庫變動
+        function startListening() {
+            if (!currentUser) return;
+            
+            const dataCol = collection(db, 'artifacts', appId, 'public', 'data', 'materials');
+            
+            // 使用成功與失敗回呼 (必要)
+            unsubscribe = onSnapshot(dataCol, (snapshot) => {
+                allMaterials = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                vendors = new Set(allMaterials.map(m => m.vendor));
+                updateUI();
+                
+                // 動畫效果
+                const icon = document.getElementById('cloud-status-icon');
+                icon.classList.add('sync-active');
+                setTimeout(() => icon.classList.remove('sync-active'), 2000);
+            }, (err) => {
+                console.error("Firestore 監聽錯誤:", err);
+                if (err.code === 'permission-denied') {
+                    document.getElementById('permission-error').style.display = 'block';
+                }
+            });
+        }
+
+        // --- 功能函數 ---
+
+        window.handleMultipleFiles = async function(e) {
             const files = e.target.files;
-            if (!files || files.length === 0) return;
+            if (!files || files.length === 0 || !currentUser) return;
+            
             document.getElementById('loading-spinner').classList.remove('hidden');
             
-            const processPromises = Array.from(files).map(file => {
-                return new Promise((resolve) => {
-                    const vendorName = file.name.replace(/\.[^/.]+$/, "");
-                    const reader = new FileReader();
-                    reader.onload = function(evt) {
+            for (const file of files) {
+                const vendorName = file.name.replace(/\.[^/.]+$/, "");
+                const reader = new FileReader();
+                
+                await new Promise((resolve) => {
+                    reader.onload = async (evt) => {
                         try {
                             const workbook = XLSX.read(evt.target.result, { type: 'binary' });
                             const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: "" });
-                            processRows(rows, vendorName);
+                            await syncToCloud(rows, vendorName);
                             resolve();
                         } catch (err) {
-                            console.error(err);
+                            console.error("解析文件出錯:", err);
                             resolve();
                         }
                     };
                     reader.readAsBinaryString(file);
                 });
-            });
-
-            await Promise.all(processPromises);
+            }
+            
             document.getElementById('loading-spinner').classList.add('hidden');
             e.target.value = '';
-            updateUI();
         }
 
-        function processRows(rows, sourceName) {
-            const newItems = rows.map((row, index) => {
+        async function syncToCloud(rows, sourceName) {
+            if (!currentUser) return;
+            const batch = writeBatch(db);
+            let count = 0;
+
+            rows.forEach(row => {
                 const code = (row['工料編號'] || row['編碼'] || row['編號'] || '').toString().trim();
                 const name = (row['工料名稱'] || row['名稱'] || row['項目名稱'] || '').toString().trim();
                 const unit = (row['單位'] || '').toString().trim();
                 let totalStr = row['合計'] || row['數量'] || row['總量'] || '0';
                 const total = parseFloat(totalStr.toString().replace(/,/g, '')) || 0;
 
-                if (!code || !name || code === '序號') return null;
+                if (!code || !name || code === '序號') return;
 
                 const catKey = code.charAt(0).toUpperCase();
-                return {
-                    id: Date.now() + Math.random(),
-                    code, name, unit, total, 
+                const itemData = {
+                    code, name, unit, total,
                     vendor: sourceName,
                     catCode: categoryMap[catKey] ? catKey : 'Other',
-                    catName: categoryMap[catKey] || '其他項目'
+                    catName: categoryMap[catKey] || '其他項目',
+                    updatedAt: Date.now()
                 };
-            }).filter(item => item !== null);
 
-            allMaterials = [...allMaterials, ...newItems];
-            vendors.add(sourceName);
-        }
+                const docId = `${sourceName}_${code}`.replace(/[.#$/[\]]/g, '_');
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'materials', docId);
+                batch.set(docRef, itemData);
+                count++;
+            });
 
-        function updateMaterial(id, field, value) {
-            const index = allMaterials.findIndex(m => m.id === id);
-            if (index !== -1) {
-                if (field === 'total') {
-                    allMaterials[index][field] = parseFloat(value) || 0;
-                } else if (field === 'code') {
-                    allMaterials[index][field] = value;
-                    const catKey = value.charAt(0).toUpperCase();
-                    allMaterials[index].catCode = categoryMap[catKey] ? catKey : 'Other';
-                    allMaterials[index].catName = categoryMap[catKey] || '其他項目';
-                } else {
-                    allMaterials[index][field] = value;
+            if (count > 0) {
+                try {
+                    await batch.commit();
+                } catch (err) {
+                    if (err.code === 'permission-denied') document.getElementById('permission-error').style.display = 'block';
+                    throw err;
                 }
-                updateUI();
             }
         }
 
-        function deleteMaterial(id) {
-            if (confirm("確認移除此項資料？")) {
-                allMaterials = allMaterials.filter(m => m.id !== id);
-                const remainingVendors = new Set(allMaterials.map(m => m.vendor));
-                vendors = remainingVendors;
-                updateUI();
+        window.updateMaterial = async function(docId, field, value) {
+            if (!currentUser) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'materials', docId);
+            const updateObj = {};
+            
+            if (field === 'total') {
+                updateObj[field] = parseFloat(value) || 0;
+            } else if (field === 'code') {
+                updateObj[field] = value;
+                const catKey = value.charAt(0).toUpperCase();
+                updateObj.catCode = categoryMap[catKey] ? catKey : 'Other';
+                updateObj.catName = categoryMap[catKey] || '其他項目';
+            } else {
+                updateObj[field] = value;
             }
-        }
+            
+            updateObj.updatedAt = Date.now();
+            try {
+                await setDoc(docRef, updateObj, { merge: true });
+            } catch (err) {
+                if (err.code === 'permission-denied') document.getElementById('permission-error').style.display = 'block';
+            }
+        };
 
-        // 新增：刪除整個檔案的資料
-        function deleteFileSource(sourceName) {
-            if (confirm(`確定要刪除來自「${sourceName}」的所有資料嗎？此操作不可復原。`)) {
-                allMaterials = allMaterials.filter(m => m.vendor !== sourceName);
-                vendors.delete(sourceName);
-                updateUI();
+        window.deleteMaterial = async function(id) {
+            if (!currentUser) return;
+            if (confirm("確認從雲端移除此項資料？")) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'materials', id));
+                } catch (err) {
+                    if (err.code === 'permission-denied') document.getElementById('permission-error').style.display = 'block';
+                }
             }
-        }
+        };
+
+        window.deleteFileSource = async function(sourceName) {
+            if (!currentUser) return;
+            if (confirm(`確定清空雲端中「${sourceName}」的所有資料？`)) {
+                const batch = writeBatch(db);
+                allMaterials.filter(m => m.vendor === sourceName).forEach(m => {
+                    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'materials', m.id);
+                    batch.delete(ref);
+                });
+                try {
+                    await batch.commit();
+                } catch (err) {
+                    if (err.code === 'permission-denied') document.getElementById('permission-error').style.display = 'block';
+                }
+            }
+        };
+
+        window.resetData = async () => {
+            if (!currentUser) return;
+            if (confirm("警告：這將清空所有同事在雲端看到的數據！確定執行？")) {
+                const batch = writeBatch(db);
+                allMaterials.forEach(m => {
+                    batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'materials', m.id));
+                });
+                try {
+                    await batch.commit();
+                } catch (err) {
+                    if (err.code === 'permission-denied') document.getElementById('permission-error').style.display = 'block';
+                }
+            }
+        };
+
+        // --- UI 渲染 ---
 
         function renderTable() {
             const search = document.getElementById('searchInput').value.toLowerCase();
@@ -266,7 +417,7 @@
             });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-16 text-center text-gray-400 italic">無符合條件資料</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="p-16 text-center text-gray-400 italic">目前無資料</td></tr>`;
                 return;
             }
 
@@ -276,12 +427,12 @@
                     <td class="p-4 font-mono-code text-blue-700 font-medium editable" ondblclick="makeEditable(this, '${m.id}', 'code')">${m.code}</td>
                     <td class="p-4 text-gray-800 font-medium editable" ondblclick="makeEditable(this, '${m.id}', 'name')">${m.name}</td>
                     <td class="p-4 text-gray-500 editable" ondblclick="makeEditable(this, '${m.id}', 'unit')">${m.unit || '-'}</td>
-                    <td class="p-4 text-xs text-gray-400">${m.vendor}</td>
+                    <td class="p-4 text-[10px] text-gray-400 font-bold uppercase">${m.vendor}</td>
                     <td class="p-4 text-right font-mono-code font-bold text-green-700 editable" ondblclick="makeEditable(this, '${m.id}', 'total')">
                         ${m.total.toLocaleString(undefined, {minimumFractionDigits: 2})}
                     </td>
                     <td class="p-4 text-center">
-                        <button onclick="deleteMaterial('${m.id}')" class="text-red-300 hover:text-red-600 transition">
+                        <button onclick="deleteMaterial('${m.id}')" class="text-red-300 hover:text-red-600">
                             <i class="fa-solid fa-trash-can"></i>
                         </button>
                     </td>
@@ -295,19 +446,19 @@
             element.innerHTML = `<input type="text" class="editing-input" value="${originalValue}">`;
             const input = element.querySelector('input');
             input.focus();
-
-            const save = () => {
-                const newValue = input.value;
-                if (newValue !== originalValue) {
-                    updateMaterial(parseFloat(id), field, newValue);
-                } else {
-                    renderTable();
-                }
+            input.onblur = () => {
+                if (input.value !== originalValue) updateMaterial(id, field, input.value);
+                else renderTable();
             };
-
-            input.onblur = save;
-            input.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+            input.onkeydown = (e) => { if (e.key === 'Enter') input.blur(); };
         };
+
+        function updateUI() {
+            renderTable();
+            renderStats();
+            renderVendorSidebar();
+            renderFilterButtons();
+        }
 
         function renderStats() {
             document.getElementById('stat-total').innerText = allMaterials.length;
@@ -319,43 +470,33 @@
 
         function renderVendorSidebar() {
             const list = document.getElementById('vendor-items');
-            if (vendors.size === 0) {
-                list.innerHTML = `<li class="px-3 py-2 text-gray-500 italic text-xs text-center">無已載入資料庫</li>`;
-                return;
-            }
-
             list.innerHTML = Array.from(vendors).map(v => `
-                <li class="vendor-item flex items-center justify-between px-3 py-2 mx-2 mb-1 bg-white/5 rounded transition text-xs group">
-                    <div class="flex items-center truncate flex-1 mr-2" title="${v}">
-                        <i class="fa-solid fa-database text-green-400 mr-2"></i>
-                        <span class="truncate text-gray-300 group-hover:text-white">${v}</span>
-                    </div>
-                    <button onclick="deleteFileSource('${v}')" class="delete-vendor-btn p-1 text-red-400 hover:text-red-600 hover:bg-red-500/10 rounded" title="刪除此檔案所有資料">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                <li class="vendor-item flex items-center justify-between px-3 py-2 mx-2 mb-1 bg-white/5 rounded text-xs">
+                    <div class="truncate flex-1 text-gray-300"><i class="fa-solid fa-database text-green-400 mr-2"></i>${v}</div>
+                    <button onclick="deleteFileSource('${v}')" class="delete-vendor-btn text-red-400 p-1"><i class="fa-solid fa-trash-can"></i></button>
                 </li>
-            `).join('');
+            `).join('') || '<li class="px-3 py-2 text-gray-500 italic text-xs text-center">尚無雲端資料</li>';
         }
 
         function renderFilterButtons() {
             const btns = document.getElementById('filter-btns');
-            const cats = ['ALL', ...Object.keys(categoryMap), 'Other'];
+            const cats = ['ALL', 'C', 'D', 'E', 'F', 'G', 'I', 'K', 'M', 'Other'];
             btns.innerHTML = cats.map(c => {
                 let count = c === 'ALL' ? allMaterials.length : allMaterials.filter(m => m.catCode === c).length;
                 if (c !== 'ALL' && count === 0) return '';
                 return `
-                    <button onclick="setFilter('${c}')" class="filter-btn px-3 py-1.5 text-xs border rounded-full transition flex items-center gap-2 ${currentFilter === c ? 'active' : 'bg-white text-gray-600'}">
-                        ${c === 'ALL' ? '全部項目' : (categoryMap[c] || '其他')} <span class="font-mono opacity-50">${count}</span>
+                    <button onclick="window.setFilter('${c}')" class="filter-btn px-3 py-1.5 text-xs border rounded-full transition flex items-center gap-2 ${currentFilter === c ? 'active' : 'bg-white text-gray-600'}">
+                        ${c === 'ALL' ? '全部' : (categoryMap[c] || '其他')} <span class="opacity-50">${count}</span>
                     </button>
                 `;
             }).join('');
         }
 
-        function updateUI() { renderTable(); renderStats(); renderVendorSidebar(); renderFilterButtons(); }
-        function setFilter(c) { currentFilter = c; updateUI(); }
-        function resetData() { if (confirm("確定清空所有載入數據？")) { allMaterials = []; vendors.clear(); updateUI(); } }
+        window.setFilter = (c) => { currentFilter = c; updateUI(); };
         document.getElementById('searchInput').addEventListener('input', renderTable);
-        renderFilterButtons();
+        
+        // 開始執行
+        initAuth();
     </script>
 </body>
 </html>
