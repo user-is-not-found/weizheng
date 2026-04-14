@@ -42,6 +42,10 @@
         
         .editable:hover { background-color: #f0fdf4; cursor: pointer; }
         .editing-input { width: 100%; border: 2px solid var(--primary); border-radius: 4px; padding: 2px 4px; outline: none; }
+        
+        /* 側邊欄刪除按鈕樣式 */
+        .vendor-item:hover .delete-vendor-btn { opacity: 1; }
+        .delete-vendor-btn { opacity: 0; transition: opacity 0.2s; }
     </style>
 </head>
 <body class="flex h-screen overflow-hidden">
@@ -70,11 +74,11 @@
             </ul>
             <div id="vendor-list" class="mt-6 px-3">
                 <li class="text-xs font-semibold text-gray-400 uppercase mb-2 px-3 flex justify-between">
-                    <span>專案資料來源</span>
+                    <span>已匯入標單列表</span>
                     <span id="vendor-count" class="text-green-400">0</span>
                 </li>
                 <ul id="vendor-items" class="space-y-1 text-sm">
-                    <li class="px-3 py-2 text-gray-500 italic text-xs">無已載入資料</li>
+                    <li class="px-3 py-2 text-gray-500 italic text-xs text-center">尚未匯入任何檔案</li>
                 </ul>
             </div>
         </nav>
@@ -243,6 +247,15 @@
             }
         }
 
+        // 新增：刪除整個檔案的資料
+        function deleteFileSource(sourceName) {
+            if (confirm(`確定要刪除來自「${sourceName}」的所有資料嗎？此操作不可復原。`)) {
+                allMaterials = allMaterials.filter(m => m.vendor !== sourceName);
+                vendors.delete(sourceName);
+                updateUI();
+            }
+        }
+
         function renderTable() {
             const search = document.getElementById('searchInput').value.toLowerCase();
             const tbody = document.getElementById('table-body');
@@ -306,8 +319,22 @@
 
         function renderVendorSidebar() {
             const list = document.getElementById('vendor-items');
-            list.innerHTML = vendors.size === 0 ? `<li class="px-3 py-2 text-gray-500 italic text-xs">無已載入資料庫</li>` :
-                Array.from(vendors).map(v => `<li class="px-3 py-2 mx-2 mb-1 bg-white/5 rounded transition text-xs truncate" title="${v}"><i class="fa-solid fa-database text-green-400 mr-2"></i>${v}</li>`).join('');
+            if (vendors.size === 0) {
+                list.innerHTML = `<li class="px-3 py-2 text-gray-500 italic text-xs text-center">無已載入資料庫</li>`;
+                return;
+            }
+
+            list.innerHTML = Array.from(vendors).map(v => `
+                <li class="vendor-item flex items-center justify-between px-3 py-2 mx-2 mb-1 bg-white/5 rounded transition text-xs group">
+                    <div class="flex items-center truncate flex-1 mr-2" title="${v}">
+                        <i class="fa-solid fa-database text-green-400 mr-2"></i>
+                        <span class="truncate text-gray-300 group-hover:text-white">${v}</span>
+                    </div>
+                    <button onclick="deleteFileSource('${v}')" class="delete-vendor-btn p-1 text-red-400 hover:text-red-600 hover:bg-red-500/10 rounded" title="刪除此檔案所有資料">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </li>
+            `).join('');
         }
 
         function renderFilterButtons() {
