@@ -28,7 +28,6 @@
     </style>
 </head>
 <body class="flex h-screen bg-slate-50 text-slate-800">
-
     <aside class="sidebar flex flex-col p-6 text-white shadow-xl flex-shrink-0">
         <div class="flex items-center space-x-3 mb-10">
             <div class="bg-green-500 p-2 rounded-lg">
@@ -36,7 +35,6 @@
             </div>
             <div class="text-2xl font-bold tracking-tight text-green-400">崴正營造</div>
         </div>
-
         <div class="space-y-8 flex-1 overflow-hidden flex flex-col">
             <div>
                 <label class="block text-sm text-slate-400 mb-3">1. 標單載入</label>
@@ -46,7 +44,6 @@
                     <span>載入標單檔案</span>
                 </button>
             </div>
-
             <div>
                 <div class="flex justify-between items-center mb-3">
                     <label class="text-sm text-slate-400">2. 相似度比對門檻</label>
@@ -58,7 +55,6 @@
                 <input type="range" id="thresholdRange" min="50" max="100" value="90" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500" oninput="syncThreshold('range', this.value)">
                 <p class="text-[11px] text-slate-500 mt-2"><i class="fas fa-info-circle mr-1"></i> 可拖動滑桿或點擊數值手動輸入</p>
             </div>
-            
             <div class="mt-4 border-t border-slate-700 pt-6 flex-1 flex flex-col overflow-hidden">
                 <label class="block text-sm text-slate-400 mb-4 flex items-center">
                     <i class="fas fa-list-ul mr-2"></i> 3. 已載入檔案列表
@@ -69,7 +65,6 @@
             </div>
         </div>
     </aside>
-
     <main class="flex-1 flex flex-col p-8 overflow-hidden">
         <header class="flex justify-between items-end mb-8">
             <div>
@@ -80,7 +75,6 @@
                 </p>
             </div>
         </header>
-
         <div class="bg-white rounded-2xl shadow-sm flex-1 overflow-hidden border border-slate-200 flex flex-col relative">
             <div class="overflow-auto flex-1">
                 <table class="w-full text-left border-collapse">
@@ -100,7 +94,6 @@
             </div>
         </div>
     </main>
-
     <div id="deleteModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex justify-center items-center backdrop-blur-sm transition-all">
         <div class="bg-white rounded-2xl shadow-2xl p-8 w-[400px] transform transition-all scale-100 border border-slate-100">
             <div class="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mb-6">
@@ -116,24 +109,19 @@
             </div>
         </div>
     </div>
-
     <script>
         let cachedRawData = []; 
         let currentDisplayData = []; 
         let sourceToMerge = null;
         let loadedFiles = []; 
         let fileToDelete = null;
-
-        // 同步模糊門檻數值
         function syncThreshold(source, val) {
             let numVal = parseInt(val, 10);
             if (isNaN(numVal)) numVal = 90;
             if (numVal < 50) numVal = 50;
             if (numVal > 100) numVal = 100;
-
             const inputEl = document.getElementById('thresholdInput');
             const rangeEl = document.getElementById('thresholdRange');
-
             if (source === 'input') {
                 inputEl.value = numVal;
                 rangeEl.value = numVal;
@@ -142,8 +130,6 @@
             }
             autoProcess();
         }
-
-        // 計算共同字串
         function getCommonSubstring(strings) {
             if (!strings || strings.length === 0) return "";
             if (strings.length === 1) return strings[0];
@@ -159,8 +145,6 @@
             }
             return lcs.length >= 2 ? lcs : strings[0];
         }
-
-        // 檔案匯入處理
         async function loadFiles() {
             const files = document.getElementById('fileInput').files;
             if(!files.length) return;
@@ -174,18 +158,15 @@
             renderFileList();
             autoProcess();
         }
-
         function openDeleteModal(fileName) {
             fileToDelete = fileName;
             document.getElementById('modalFileName').innerText = fileName;
             document.getElementById('deleteModal').classList.remove('hidden');
         }
-
         function closeDeleteModal() {
             fileToDelete = null;
             document.getElementById('deleteModal').classList.add('hidden');
         }
-
         function confirmRemoveFile() {
             if (!fileToDelete) return;
             cachedRawData = cachedRawData.filter(item => item.fileName !== fileToDelete);
@@ -194,7 +175,6 @@
             autoProcess();
             closeDeleteModal();
         }
-
         function renderFileList() {
             const listEl = document.getElementById('fileList');
             if (loadedFiles.length === 0) {
@@ -215,13 +195,10 @@
                 </li>
             `).join('');
         }
-
-        // 核心運算邏輯
         function autoProcess() {
             const threshold = document.getElementById('thresholdRange').value / 100;
             const merged = [];
             const dataCopy = JSON.parse(JSON.stringify(cachedRawData));
-            
             dataCopy.forEach(item => {
                 const fuse = new Fuse(merged, { keys: ["name"], threshold: 1 - threshold });
                 const result = fuse.search(item.name);
@@ -238,20 +215,16 @@
             sourceToMerge = null;
             render();
         }
-
-        // 合併與拆解操作
         function startManualMerge(idx, event) {
             event.stopPropagation();
             sourceToMerge = idx;
             render();
         }
-
         function cancelManualMerge(event) {
             if(event) event.stopPropagation();
             sourceToMerge = null;
             render();
         }
-
         function commitMerge(targetIdx, event) {
             event.stopPropagation();
             if (sourceToMerge === null || sourceToMerge === targetIdx) return;
@@ -263,7 +236,6 @@
             sourceToMerge = null;
             render();
         }
-
         function unbindDetail(mainIdx, detailIdx, event) {
             event.stopPropagation();
             const detailItem = currentDisplayData[mainIdx].details.splice(detailIdx, 1)[0];
@@ -274,14 +246,12 @@
             if (currentDisplayData[mainIdx].details.length === 0) currentDisplayData.splice(mainIdx, 1);
             render();
         }
-
         function render() {
             const body = document.getElementById('resultBody');
             if (currentDisplayData.length === 0) {
                 body.innerHTML = '<tr><td colspan="5" class="p-20 text-center text-slate-400 italic">請自左側面板載入標單檔案以進行分析作業。</td></tr>';
                 return;
             }
-
             let html = sourceToMerge !== null ? `
                 <tr class="sticky top-[73px] z-10">
                     <td colspan="5" class="bg-blue-600 text-white p-3 text-center text-sm font-bold shadow-lg animate-pulse flex items-center justify-center space-x-2">
@@ -290,14 +260,11 @@
                     </td>
                 </tr>
             ` : '';
-
             html += currentDisplayData.map((item, idx) => {
                 const isMerged = item.details.length > 1;
                 const isBeingSelected = sourceToMerge === idx;
                 const isMergingMode = sourceToMerge !== null;
-                
                 let displayName = isMerged ? getCommonSubstring(item.details.map(d => d.name)) : item.name;
-                
                 let actionBtnHTML = '';
                 if (!isMergingMode) {
                     actionBtnHTML = `<button onclick="startManualMerge(${idx}, event)" class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-1.5 rounded-lg text-[12px] font-bold transition flex items-center space-x-1"><i class="fas fa-link"></i><span>手動</span></button>`;
@@ -306,7 +273,6 @@
                 } else {
                     actionBtnHTML = `<button onclick="commitMerge(${idx}, event)" class="text-white bg-green-500 hover:bg-green-600 px-4 py-1.5 rounded-lg text-[12px] font-bold transition shadow-md w-full flex items-center justify-center space-x-1"><i class="fas fa-file-import"></i><span>併入</span></button>`;
                 }
-
                 return `
                 <tr class="group cursor-pointer hover:bg-slate-50/80 transition-all ${isMerged ? 'row-merged' : ''} ${isBeingSelected ? 'row-selecting' : ''}" onclick="toggleDetails(${idx}, this)">
                     <td class="p-5 text-center expand-btn"><i class="fas fa-caret-right"></i></td>
@@ -348,10 +314,9 @@
                         </div>
                     </td>
                 </tr>
-            `}).join('');
+                `}).join('');
             body.innerHTML = html;
         }
-
         function readFile(file) {
             return new Promise(resolve => {
                 const reader = new FileReader();
@@ -375,7 +340,6 @@
                 reader.readAsArrayBuffer(file);
             });
         }
-
         function toggleDetails(idx, el) {
             if(sourceToMerge !== null) return;
             const row = document.getElementById(`details-${idx}`);
