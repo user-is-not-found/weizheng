@@ -46,21 +46,21 @@
             </div>
             <div>
                 <div class="flex justify-between items-center mb-3">
-                    <label class="text-sm text-slate-400">2. 相似度比對門檻</label>
+                    <label class="text-sm text-slate-400">2. 比對門檻設定</label>
                     <div class="flex items-center space-x-1 bg-green-400/10 px-2 py-0.5 rounded text-sm text-green-400 font-bold border border-green-500/30 focus-within:border-green-400 transition-colors cursor-text" onclick="document.getElementById('thresholdInput').focus()">
                         <input type="number" id="thresholdInput" min="50" max="100" value="90" class="bg-transparent w-7 text-right outline-none p-0 text-green-400" onchange="syncThreshold('input', this.value)" onkeyup="if(event.key === 'Enter') this.blur()">
                         <span>%</span>
                     </div>
                 </div>
                 <input type="range" id="thresholdRange" min="50" max="100" value="90" class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500" oninput="syncThreshold('range', this.value)">
-                <p class="text-[11px] text-slate-500 mt-2"><i class="fas fa-info-circle mr-1"></i> 可拖動滑桿或點擊數值手動輸入</p>
+                <p class="text-[11px] text-slate-500 mt-2"><i class="fas fa-info-circle mr-1"></i> 可調整參數優化自動比對精度</p>
             </div>
             <div class="mt-4 border-t border-slate-700 pt-6 flex-1 flex flex-col overflow-hidden">
                 <label class="block text-sm text-slate-400 mb-4 flex items-center">
-                    <i class="fas fa-list-ul mr-2"></i> 3. 已載入檔案列表
+                    <i class="fas fa-list-ul mr-2"></i> 3. 已載入列表
                 </label>
                 <ul id="fileList" class="space-y-3 overflow-y-auto pr-1 flex-1">
-                    <li class="text-slate-500 italic text-sm text-center py-10">目前無載入之檔案</li>
+                    <li class="text-slate-500 italic text-sm text-center py-10">暫無載入檔案</li>
                 </ul>
             </div>
         </div>
@@ -68,27 +68,36 @@
     <main class="flex-1 flex flex-col p-8 overflow-hidden">
         <header class="flex justify-between items-end mb-8">
             <div>
-                <h1 class="text-3xl font-extrabold text-slate-900">工料彙整明細表</h1>
+                <h1 class="text-3xl font-extrabold text-slate-900">工料彙整明細</h1>
                 <p class="text-slate-500 mt-2 text-sm flex items-center">
                     <span class="inline-block w-3 h-3 bg-yellow-200 border border-yellow-300 rounded-sm mr-2"></span>
-                    系統將依據設定門檻自動比對相似工料，並擷取共同字串作為代表名稱。
+                    針對標單項目進行清洗與數量加總處理。
                 </p>
             </div>
         </header>
         <div class="bg-white rounded-2xl shadow-sm flex-1 overflow-hidden border border-slate-200 flex flex-col relative">
+            <div id="mergeNotice" class="hidden shrink-0 bg-blue-600 text-white px-6 py-3 shadow-md z-30 flex items-center justify-between animate-pulse">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-link text-lg"></i>
+                    <span class="font-bold tracking-wide">手動合併中：請選擇目標項執行「併入」</span>
+                </div>
+                <button onclick="cancelManualMerge(event)" class="bg-blue-800 hover:bg-blue-900 px-4 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap">
+                    取消
+                </button>
+            </div>
             <div class="overflow-auto flex-1">
                 <table class="w-full text-left border-collapse">
                     <thead class="sticky top-0 bg-slate-100 border-b border-slate-200 z-20">
                         <tr>
                             <th class="p-5 w-14 text-center text-slate-400 font-medium">#</th>
-                            <th class="p-5 text-slate-600 font-bold">工料名稱</th>
+                            <th class="p-5 text-slate-600 font-bold">工料項目名稱</th>
                             <th class="p-5 w-28 text-slate-600 font-bold">單位</th>
                             <th class="p-5 w-40 text-right text-slate-600 font-bold">加總合計</th>
                             <th class="p-5 w-32 text-center text-slate-600 font-bold">操作</th>
                         </tr>
                     </thead>
                     <tbody id="resultBody" class="divide-y divide-slate-100">
-                        <tr><td colspan="5" class="p-20 text-center text-slate-400 italic">請自左側面板載入標單檔案以進行分析作業。</td></tr>
+                        <tr><td colspan="5" class="p-20 text-center text-slate-400 italic">請由左側面板載入檔案進行分析。</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -99,13 +108,13 @@
             <div class="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mb-6">
                 <i class="fas fa-exclamation-triangle text-red-500 text-2xl"></i>
             </div>
-            <h3 class="text-xl font-bold text-slate-900 mb-2">檔案移除確認</h3>
+            <h3 class="text-xl font-bold text-slate-900 mb-2">確認移除檔案</h3>
             <p class="text-slate-500 mb-8 leading-relaxed text-sm">
-                是否確認移除下列檔案： <br><span id="modalFileName" class="font-bold text-red-500 break-all"></span>？
+                確定移除檔案：<br><span id="modalFileName" class="font-bold text-red-500 break-all"></span>？
             </p>
             <div class="flex space-x-3">
                 <button onclick="closeDeleteModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition font-bold text-sm">取消</button>
-                <button onclick="confirmRemoveFile()" class="flex-1 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition font-bold text-sm shadow-lg shadow-red-200">確認移除</button>
+                <button onclick="confirmRemoveFile()" class="flex-1 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 transition font-bold text-sm shadow-lg shadow-red-200">移除</button>
             </div>
         </div>
     </div>
@@ -130,6 +139,11 @@
             }
             autoProcess();
         }
+        function sortData() {
+            currentDisplayData.sort((a, b) => {
+                return a.name.localeCompare(b.name, 'zh-Hant', { numeric: true });
+            });
+        }
         function getCommonSubstring(strings) {
             if (!strings || strings.length === 0) return "";
             if (strings.length === 1) return strings[0];
@@ -144,6 +158,13 @@
                 }
             }
             return lcs.length >= 2 ? lcs : strings[0];
+        }
+        function updateGroupName(item) {
+            if (item.details.length > 1) {
+                item.name = getCommonSubstring(item.details.map(d => d.name));
+            } else if (item.details.length === 1) {
+                item.name = item.details[0].name;
+            }
         }
         async function loadFiles() {
             const files = document.getElementById('fileInput').files;
@@ -178,7 +199,7 @@
         function renderFileList() {
             const listEl = document.getElementById('fileList');
             if (loadedFiles.length === 0) {
-                listEl.innerHTML = '<li class="text-slate-500 italic text-sm text-center py-10">目前無載入之檔案</li>';
+                listEl.innerHTML = '<li class="text-slate-500 italic text-sm text-center py-10">暫無載入檔案</li>';
                 return;
             }
             listEl.innerHTML = loadedFiles.map(name => `
@@ -192,8 +213,7 @@
                             <i class="fas fa-trash-can"></i>
                         </button>
                     </div>
-                </li>
-            `).join('');
+                </li>`).join('');
         }
         function autoProcess() {
             const threshold = document.getElementById('thresholdRange').value / 100;
@@ -206,12 +226,14 @@
                     const target = merged[result[0].refIndex];
                     target.total += item.total;
                     target.details.push(item);
+                    updateGroupName(target);
                 } else {
                     item.details = [JSON.parse(JSON.stringify(item))];
                     merged.push(item);
                 }
             });
             currentDisplayData = merged;
+            sortData(); 
             sourceToMerge = null;
             render();
         }
@@ -232,7 +254,9 @@
             const target = currentDisplayData[targetIdx];
             target.total += source.total;
             target.details = target.details.concat(source.details);
+            updateGroupName(target);
             currentDisplayData.splice(sourceToMerge, 1);
+            sortData(); 
             sourceToMerge = null;
             render();
         }
@@ -240,51 +264,43 @@
             event.stopPropagation();
             const detailItem = currentDisplayData[mainIdx].details.splice(detailIdx, 1)[0];
             currentDisplayData[mainIdx].total -= detailItem.total;
+            updateGroupName(currentDisplayData[mainIdx]);
             currentDisplayData.push({ 
-                name: detailItem.name, unit: detailItem.unit, total: detailItem.total, details: [detailItem] 
+                name: detailItem.name, 
+                unit: detailItem.unit, 
+                total: detailItem.total, 
+                details: [detailItem] 
             });
-            if (currentDisplayData[mainIdx].details.length === 0) currentDisplayData.splice(mainIdx, 1);
+            if (currentDisplayData[mainIdx].details.length === 0) {
+                currentDisplayData.splice(mainIdx, 1);
+            }
+            sortData(); 
             render();
         }
         function render() {
             const body = document.getElementById('resultBody');
+            const notice = document.getElementById('mergeNotice');
             if (currentDisplayData.length === 0) {
-                body.innerHTML = '<tr><td colspan="5" class="p-20 text-center text-slate-400 italic">請自左側面板載入標單檔案以進行分析作業。</td></tr>';
+                notice.classList.add('hidden');
+                body.innerHTML = '<tr><td colspan="5" class="p-20 text-center text-slate-400 italic">請由左側面板載入檔案進行分析。</td></tr>';
                 return;
             }
-            let html = sourceToMerge !== null ? `
-                <tr class="sticky top-[73px] z-10">
-                    <td colspan="5" class="bg-blue-600 text-white p-3 text-center text-sm font-bold shadow-lg animate-pulse flex items-center justify-center space-x-2">
-                        <i class="fas fa-link"></i>
-                        <span>【手動合併作業進行中】請選擇目標項目執行「併入」，或點擊「取消」終止操作。</span>
-                    </td>
-                </tr>
-            ` : '';
-            html += currentDisplayData.map((item, idx) => {
+            notice.classList.toggle('hidden', sourceToMerge === null);
+            body.innerHTML = currentDisplayData.map((item, idx) => {
                 const isMerged = item.details.length > 1;
                 const isBeingSelected = sourceToMerge === idx;
                 const isMergingMode = sourceToMerge !== null;
-                let displayName = isMerged ? getCommonSubstring(item.details.map(d => d.name)) : item.name;
-                let actionBtnHTML = '';
-                if (!isMergingMode) {
-                    actionBtnHTML = `<button onclick="startManualMerge(${idx}, event)" class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-1.5 rounded-lg text-[12px] font-bold transition flex items-center space-x-1"><i class="fas fa-link"></i><span>手動</span></button>`;
-                } else if (isBeingSelected) {
-                    actionBtnHTML = `<button onclick="cancelManualMerge(event)" class="text-white bg-slate-500 hover:bg-slate-600 px-4 py-1.5 rounded-lg text-[12px] font-bold transition shadow-md">取消</button>`;
-                } else {
-                    actionBtnHTML = `<button onclick="commitMerge(${idx}, event)" class="text-white bg-green-500 hover:bg-green-600 px-4 py-1.5 rounded-lg text-[12px] font-bold transition shadow-md w-full flex items-center justify-center space-x-1"><i class="fas fa-file-import"></i><span>併入</span></button>`;
-                }
+                let actionBtnHTML = !isMergingMode ? 
+                    `<button onclick="startManualMerge(${idx}, event)" class="text-blue-600 bg-blue-50 hover:bg-blue-100 px-4 py-1.5 rounded-lg text-[12px] font-bold transition flex items-center space-x-1"><i class="fas fa-link"></i><span>合併</span></button>` :
+                    (isBeingSelected ? `<button onclick="cancelManualMerge(event)" class="text-white bg-slate-500 hover:bg-slate-600 px-4 py-1.5 rounded-lg text-[12px] font-bold transition shadow-md">取消</button>` :
+                    `<button onclick="commitMerge(${idx}, event)" class="text-white bg-green-500 hover:bg-green-600 px-4 py-1.5 rounded-lg text-[12px] font-bold transition shadow-md w-full flex items-center justify-center space-x-1"><i class="fas fa-file-import"></i><span>併入</span></button>`);
                 return `
                 <tr class="group cursor-pointer hover:bg-slate-50/80 transition-all ${isMerged ? 'row-merged' : ''} ${isBeingSelected ? 'row-selecting' : ''}" onclick="toggleDetails(${idx}, this)">
                     <td class="p-5 text-center expand-btn"><i class="fas fa-caret-right"></i></td>
-                    <td class="p-5 font-bold text-slate-800">
-                        ${displayName} 
-                        ${isMerged ? `<span class="ml-2 text-[10px] bg-yellow-400/30 text-yellow-800 px-2 py-0.5 rounded-full border border-yellow-400/50">包含 ${item.details.length} 筆</span>` : ''}
-                    </td>
+                    <td class="p-5 font-bold text-slate-800">${item.name} ${isMerged ? `<span class="ml-2 text-[10px] bg-yellow-400/30 text-yellow-800 px-2 py-0.5 rounded-full border border-yellow-400/50 font-medium">${item.details.length} 筆</span>` : ''}</td>
                     <td class="p-5 text-slate-500 text-sm">${item.unit}</td>
                     <td class="p-5 text-right font-mono font-bold text-slate-700">${item.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                    <td class="p-5 text-center" onclick="event.stopPropagation()">
-                        <div class="flex justify-center">${actionBtnHTML}</div>
-                    </td>
+                    <td class="p-5 text-center" onclick="event.stopPropagation()"><div class="flex justify-center">${actionBtnHTML}</div></td>
                 </tr>
                 <tr id="details-${idx}" class="details-row">
                     <td colspan="5" class="p-0">
@@ -292,10 +308,10 @@
                             <table class="w-full text-[13px]">
                                 <thead class="text-slate-400 border-b border-slate-200">
                                     <tr>
-                                        <th class="pb-3 text-left font-medium">來源檔案</th>
-                                        <th class="pb-3 text-left font-medium">原始標單名稱</th>
+                                        <th class="pb-3 text-left font-medium">來源</th>
+                                        <th class="pb-3 text-left font-medium">標單原始名稱</th>
                                         <th class="pb-3 text-right font-medium">原始數量</th>
-                                        <th class="pb-3 w-20 text-center font-medium">解除合併</th>
+                                        <th class="pb-3 w-20 text-center font-medium">解除</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
@@ -304,18 +320,14 @@
                                             <td class="py-3 text-slate-400 font-medium font-mono text-[11px]">${d.fileName}</td>
                                             <td class="py-3 italic text-slate-600">${d.name}</td>
                                             <td class="py-3 text-right font-bold text-slate-500 font-mono">${d.total.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                            <td class="py-3 text-center">
-                                                ${isMerged ? `<button onclick="unbindDetail(${idx}, ${dIdx}, event)" class="text-red-300 hover:text-red-500 p-1 transition" title="解除合併"><i class="fas fa-scissors"></i></button>` : '-'}
-                                            </td>
-                                        </tr>
-                                    `).join('')}
+                                            <td class="py-3 text-center">${isMerged ? `<button onclick="unbindDetail(${idx}, ${dIdx}, event)" class="text-red-300 hover:text-red-500 p-1 transition"><i class="fas fa-scissors"></i></button>` : '-'}</td>
+                                        </tr>`).join('')}
                                 </tbody>
                             </table>
                         </div>
                     </td>
-                </tr>
-                `}).join('');
-            body.innerHTML = html;
+                </tr>`;
+            }).join('');
         }
         function readFile(file) {
             return new Promise(resolve => {
@@ -326,10 +338,11 @@
                     const rows = [];
                     json.forEach(r => {
                         if (r.length < 3) return;
-                        const name = String(r[2] || "").trim();
+                        let name = String(r[2] || "").trim();
+                        name = name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '');
                         let total = 0;
                         for(let i=r.length-1; i>=0; i--) { 
-                            let v = parseFloat(r[i]); if(!isNaN(v)) { total = v; break; } 
+                            let v = parseFloat(String(r[i]).replace(/,/g, '')); if(!isNaN(v)) { total = v; break; } 
                         }
                         if (name && !["工料名稱", "C1", "項目名稱", "nan"].includes(name)) {
                             rows.push({ name, unit: String(r[3]||"-"), total, fileName: file.name });
